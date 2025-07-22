@@ -304,3 +304,292 @@ plot_manhattan_gwas <- function(traits, gwas_cat, list_chr) {
     ggplot2::scale_linetype_manual(name = "Thresholds p-values\n", values = c(2,2),
                                    guide = ggplot2::guide_legend(override.aes = list(color = c("red", "blue"))))
 }
+
+
+#' @title Data.frame with GWAS summary statistics files
+#' @description Returns a data.frame containing a list of studies and their GWAS
+#' summary statistic files for a given set of traits and locations where the 
+#' participants come from
+#'
+#' @param gwas_traits a vector with the traits of interest (as characters). The list
+#' of available traits can be obtained with \code{\link{list_gwas_traits}}
+#' @param locations a vector with the participants' locations of interest
+#' @param verbose if true, will print progress information (default: FALSE)
+#' @param timeout the timeout set in options(), reading/downloading files online
+#' might fail with the default timeout of 60 seconds
+#' @return a data.frame with information about the GWAS summary statistics files
+#' found
+#'
+#' @examples
+#' gwas_cat <- create_gwas()
+#'
+#' gwas_studies <- get_gwas_list("type 1 diabetes", "european")
+#' @export
+get_gwas_list <- function(gwas_traits, locations, verbose = FALSE, timeout = 1000){
+  
+  # Create gwas catalog from URL
+  gwas_cat <- create_gwas(verbose = verbose, timeout = timeout)
+  
+  # Combine keywords into a regex pattern, ensuring word boundaries
+  pattern_traits <- paste0("\\b(", paste(gwas_traits, collapse = "|"), ")\\b")
+  pattern_locations <- paste0("\\b(", paste(locations, collapse = "|"), ")\\b")
+  
+  # Create dataframe with gwas catalog information
+  gwas_files_info <- unique(data.frame(date = gwas_cat$`DATE ADDED TO CATALOG`,
+                                       pubmed_id = gwas_cat$`PUBMEDID`,
+                                       disease_trait = gwas_cat$`DISEASE/TRAIT`,
+                                       #chrom_id = gwas_cat$`CHR_ID`,
+                                       initial_sample_size = gwas_cat$`INITIAL SAMPLE SIZE`,
+                                       replication_sample_size = gwas_cat$`REPLICATION SAMPLE SIZE`,
+                                       #pvalue_mlog = gwas_cat$`PVALUE_MLOG`,
+                                       study_accession = gwas_cat$`STUDY ACCESSION`))
+  
+  # Filter by trait
+  gwas_files_info <- gwas_files_info[grepl(pattern_traits, 
+                                           gwas_files_info$disease_trait, 
+                                           ignore.case = TRUE), ]
+  
+  # Filter by population
+  gwas_files_info <- gwas_files_info[grepl(pattern_locations, 
+                                           gwas_files_info$initial_sample_size, 
+                                           ignore.case = TRUE), ]
+  
+  # Add column to check if study is available to download
+  gwas_files_info$availability <- ifelse(check_gwas_availability(gwas_files_info$study_accession), 
+                                         "Available", "Unavailable")
+  
+  return(gwas_files_info)
+}
+
+
+#' @title Checks if a GWAS is available to download from the EMBL-EBI online 
+#' repository given a GCST ID
+#' @description Calls get_gwas_dir_from_id to obtain the directory where the 
+#' file should be stored (given the GCST ID) and checks if the file exists in that
+#' directory
+#'
+#' @param gcst_id a string with the GWAS identifier in the GWAS catalog
+#' @return a boolean. TRUE if the file can be downloaded, FALSE otherwise
+#'
+#' @examples
+#' check_gwas_availability("GCST005536")
+#' @export
+check_gwas_availability <- function(gcst_id){
+  
+  # Url with summary statistics
+  url <- "http://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/"
+  
+  # Get the name of the directory where the study directory is stored
+  dir <- get_gwas_dir_from_id(gcst_id)
+  full_url <- paste0(url, dir, "/", gcst_id)
+  
+  # Return TRUE if directory exists
+  return(RCurl::url.exists(full_url))
+}
+
+
+#' @title Obtains the name of the online directory where a GWAS study is stored
+#' @description Given a GCST ID the function returns a string with the name of 
+#' the directory within the EMBL-EBI online directory is stored. The repo name
+#' comes from the thousands of the GCST ID
+#'
+#' @param gcst_id a string with the GWAS identifier in the GWAS catalog
+#' @return a string with the name of the directory where the file is stored
+#'
+#' @examples
+#' gwas_dir <- get_gwas_dir_from_id("GCST005536")
+#' @export
+get_gwas_dir_from_id <- function(gcst_id){
+  
+  # Get the numbers in the gcst id
+  index <- substring(gcst_id, 5, nchar(gcst_id))
+  
+  # Use numbers to get the index for the directory
+  end <- ceiling(as.integer(index)/1000)*1000
+  start <- end - 999
+  
+  n_digits <- nchar(index)
+  
+  # Create directory
+  dir <- paste0("GCST", 
+                sprintf(paste0("%0", n_digits, "d"), start), 
+                "-GCST",
+                sprintf(paste0("%0", n_digits, "d"), end))
+  return(dir)
+}
+
+
+#' @title Downloads a GWAS summary statistics file given a GCST ID
+#' @description Calls get_gwas_dir_from_id to obtain the online directory where
+#' the selected GWAS summary statistics file (given by the GCST ID) is stored and
+#' downloads the file in the selected directory. The function checks if the file
+#' can be downloaded and stops if it cannot.
+#'
+#' @param gcst_id a string with the desired GWAS Catalog Study ID
+#' @param install_dir a string with the directory to download the file
+#' @param verbose if true, will print progress information (default: FALSE)
+#' @param timeout the timeout set in options(), reading/downloading files online
+#' might fail with the default timeout of 60 seconds
+#' @return nothing, download file in "install_dir"
+#'
+#' @examples
+#' get_gwas_file("GCST005536", "./gwas_files")
+#' @export
+get_gwas_file <- function(gcst_id, install_dir = "./",  timeout = 10000, verbose = TRUE){
+  # Timeout settings
+  original_timeout <- getOption("timeout")
+  options(timeout = timeout)
+  if(verbose) print(paste0("Setting the timeout to '", timeout, "'"))
+  
+  # Directory creation if it doesn't exist
+  if (!file.exists(install_dir)){
+    if(verbose) print(paste0("Creating folder '", install_dir, "'"))
+    dir.create(install_dir)
+  }
+  
+  # Obtain full url to harmonised gwas directory
+  url = "http://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/"
+  dir <- get_gwas_dir_from_id(gcst_id)
+  full_url <- paste0(url, dir, "/", gcst_id, "/harmonised/")
+  
+  # Check if the file exists
+  if(!check_gwas_availability(full_url)){
+    stop("The selected GWAS file is not available to download.")
+  }
+  
+  # Read html to see available files
+  doc <- xml2::read_html(full_url)
+  links <- xml2::xml_find_all(doc, "//a")
+  file_names <- xml2::xml_attr(links, "href")
+  
+  # Get the file (first occurence) ending in h.tsv.gz
+  download_files <- file_names[grepl("\\.h\\.tsv\\.gz$", file_names, perl = TRUE)] 
+  download_file <- download_files[1]
+  
+  # Download file
+  download_url <- paste0(full_url, download_file)
+  utils::download.file(url = download_url,
+                       destfile = paste0(install_dir, "/", download_file))
+  
+  # Timeout settings
+  options(timeout = original_timeout)
+  if(verbose) print(paste0("Resetting the timeout to previous value '", original_timeout, "'"))
+}
+
+
+#' @title Loads a GWAS file into the R environment
+#' @description Loads a GWAS file into a data.frame in the R environment using
+#' fast loading with DuckDB
+#'
+#' @param gwas_file a string with the path to the GWAS file
+#' @param memory_limit the number of RAM GB set for DuckDB to operate (default = 2)
+#' @return a data.frame with the information stored in the GWAS file
+#'
+#' @examples
+#' get_gwas_file("GCST005536", "./gwas_files")
+#' gwas_df <- load_gwas_file("./gwas_files/25751624-GCST005536-EFO_0001359.h.tsv.gz")
+#' @export
+load_gwas_file <- function(gwas_file, memory_limit = 2){
+  
+  # Path to gwas file
+  file_name = gwas_file
+  
+  # Path to DuckDB file
+  db_path <- "./duckdb_database.duckdb"
+  
+  # Open duckDB connection
+  con <- duckdb::dbConnect(duckdb::duckdb(), dbdir = db_path)
+  
+  # Set RAM usage limit to 2GB
+  memory_query <- sprintf("SET memory_limit='%sGB'", memory_limit)
+  DBI::dbExecute(con, memory_query)
+  
+  # Use read_csv_auto with custom options
+  query <- sprintf("
+    SELECT * FROM read_csv_auto('%s', delim='\t', header=True, compression='gzip')
+  ", file_name)
+  
+  gwas_df <- DBI::dbGetQuery(con, query)
+  
+  # Clean up
+  DBI::dbDisconnect(con)
+  file.remove(db_path)
+  
+  # Return dataframe with gwas info
+  return(gwas_df)
+}
+
+
+#' @title Compares a data.frame with annotated variant rsids to obtain information
+#' about those variants which can be found in the GWAS file
+#' @description Takes a data.frame with GWAS information and a data.frame with a
+#' annotated rsids and annotates the variants found with the beta, effect allele
+#' frequency and p value found in the GWAS. It also highlights if the effect allele
+#' is the reference or the alternative allele in the annotated variant
+#'
+#' @param gwas_df a data.frame with information obtained from a GWAS file
+#' @param rsid_df a data.frame with annotated genetic variants IDs 
+#' @param memory_limit the number of GB set for DuckDB to operate (default = 2)
+#' @param verbose if true, will print progress information (default: FALSE)
+#' @return the "rsid_df" with merged columns containing information from the 
+#' "gwas_df" 
+#'
+#' @examples
+#' get_gwas_file("GCST005536", "./gwas_files")
+#' gwas_df <- load_gwas_file("./gwas_files/25751624-GCST005536-EFO_0001359.h.tsv.gz")
+#' 
+#' vargen_install("./vargen_data/")
+#' DM1_simple <- vargen_pipeline(vargen_dir = "./vargen_data/", omim_morbid_ids = "222100",
+#'                               fantom_corr = 0.25, outdir = "./", verbose = TRUE)
+#'                               
+#' DM1_simple_ann <- annotate_dataframe(DM1_simple)
+#' 
+#' DM1_simple_ann_gwas <- compare_gwas(gwas_df, DM1_simple_ann)
+#' @export
+compare_gwas <- function(gwas_df, rsid_df, memory_limit = 2, verbose = FALSE){
+  
+  # Path to DuckDB file
+  db_path <- "./duckdb_database.duckdb"
+  
+  # Open duckDB connection
+  con <- duckdb::dbConnect(duckdb::duckdb(), dbdir = db_path)
+  
+  # Set RAM usage limit to specified number of GB
+  memory_query <- sprintf("SET memory_limit='%sGB'", memory_limit)
+  DBI::dbExecute(con, memory_query)
+  
+  # Get dataframes
+  duckdb::duckdb_register(con, "gwas_df", gwas_df)
+  duckdb::duckdb_register(con, "rsid_df", rsid_df)
+  
+  # Check the column name that contains rsids
+  rsid_col <- grep("rsid", names(gwas_df), value = TRUE)
+  
+  # SQL query: join on df1.rsid = df2.rsid and ref/alt = ref/alt
+  query <- sprintf("
+    SELECT 
+      df2.*, 
+      df1.effect_allele, 
+      df1.other_allele, 
+      df1.beta, 
+      df1.effect_allele_frequency, 
+      df1.p_value,
+      CASE 
+        WHEN upper(df1.effect_allele) = upper(df2.ALT) THEN 'ALT'
+        WHEN upper(df1.effect_allele) = upper(df2.REF) THEN 'REF'
+        ELSE 'MISMATCH'
+      END AS effect_on
+    FROM gwas_df AS df1
+    INNER JOIN rsid_df AS df2
+    ON df2.rsid = df1.%s
+  ", rsid_col)
+  
+  # Run query and get result as dataframe
+  intersect_df <- DBI::dbGetQuery(con, query)
+  
+  # Clean up
+  DBI::dbDisconnect(con)
+  
+  # Return dataframe with shared variants in both dataframes
+  return(intersect_df)
+}
