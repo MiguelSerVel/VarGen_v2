@@ -93,11 +93,12 @@ select_gtex_tissues <- function(gtex_dir, tissues_query = ""){
 #' @description GTEx IDs are in the format "chr_pos_ref_alt_build". To make it
 #' consistent with the rest of the package, we are converting them to rsids.
 #' We us the "gtex_lookup" which is a data.frame created by reading the gtex lookup file.
-#' (see: get_gtex_variants)
+#' (see: get_gtex_variants). Function uses DuckDB for fast data loading to upload 
+#' data to the R environment.
 #'
 #' @param gtex_variants a data.frame of gtex variants obtained during "get_gtex_variants"
 #' should contain at least one column with the gtex_id as "chr_pos_alt_ref_build"
-#' @param gtex_lookup_file the lookup file, GTEx to rsids. "GTEx_Analysis_2017-06-05_v8_WholeGenomeSeq_838Indiv_Analysis_Freeze.lookup_table.txt.gz"
+#' @param gtex_lookup_file the lookup file, GTEx to rsids. 
 #' Can be obtained using \code{\link{vargen_install}}.
 #' @param verbose if true, will print information about the conversion (default: FALSE)
 #' @return a vector of rsids (as some gtex ids do not have a corresponding rsid
