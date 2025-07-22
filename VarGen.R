@@ -241,9 +241,9 @@ vargen_pipeline <- function(vargen_dir, omim_morbid_ids, fantom_corr = 0.25,
     dir.create(outdir)
   }
 
-  #_____________________________________________________________________________
+  #-----------------------------------------------------------------------------
   # Loading the necessary resources
-  #_____________________________________________________________________________
+  #-----------------------------------------------------------------------------
   if(missing(gene_mart) || class(gene_mart) != 'Mart'){
     if(verbose) print("Connecting to the gene mart...")
     gene_mart <- connect_to_gene_ensembl()
@@ -272,22 +272,33 @@ vargen_pipeline <- function(vargen_dir, omim_morbid_ids, fantom_corr = 0.25,
 
   if(verbose) print(paste0("Reading the enhancer tss association file for FANTOM5... '" ,
                            vargen_dir, "/enhancer_tss_associations.bed'"))
+  
   fantom_df <- prepare_fantom(enhancer_tss_association = paste0(vargen_dir,
                                                                 "/enhancer_tss_associations.bed"))
 
   hg19ToHg38.over.chain <- paste0(vargen_dir, "/hg19ToHg38.over.chain")
+  
   if(!file.exists(hg19ToHg38.over.chain)){
     stop(paste0("Can not read: ", hg19ToHg38.over.chain, ", stopping now."))
   }
 
-  gtex_lookup_file <- paste0(vargen_dir, "/GTEx_Analysis_2017-06-05_v8_WholeGenomeSeq_838Indiv_Analysis_Freeze.lookup_table.txt.gz")
-  if(!file.exists(gtex_lookup_file)){
+  # Check the lookup files downloaded
+  gtex_lookup_files <- list.files(path = vargen_dir, 
+                                  pattern = "\\.lookup_table\\.txt\\.gz$", 
+                                  full.names = TRUE)
+  
+  # Check if there are any lookup files
+  if(length(gtex_lookup_files) == 0){
     stop(paste0("Can not read: ", gtex_lookup_file, ", stopping now."))
   }
 
-  #_____________________________________________________________________________
+  # Get the last one (the newest one)
+  gtex_lookup_file <- gtex_lookup_files[length(gtex_lookup_files)]
+  
+  
+  #-----------------------------------------------------------------------------
   # Getting variants from genes related to OMIM disease
-  #_____________________________________________________________________________
+  #-----------------------------------------------------------------------------
   if(verbose) print("Starting the pipeline...")
 
   omim_all_genes <- data.frame()
@@ -311,8 +322,9 @@ vargen_pipeline <- function(vargen_dir, omim_morbid_ids, fantom_corr = 0.25,
     # We get the variants on the genes:
     genes_variants <- get_genes_variants(genes = omim_all_genes, verbose = verbose)
 
-    if(length(genes_variants) != 0) master_variants <- rbind(master_variants,
-                                                             genes_variants)
+    if(length(genes_variants) != 0){
+      master_variants <- rbind(master_variants, genes_variants)
+    }
 
     # We get the variants on the enhancers of the genes:
     fantom_variants <- get_fantom5_variants(fantom_df = fantom_df,
@@ -321,20 +333,20 @@ vargen_pipeline <- function(vargen_dir, omim_morbid_ids, fantom_corr = 0.25,
                                             hg19ToHg38.over.chain = hg19ToHg38.over.chain,
                                             verbose = verbose)
 
-    if(length(fantom_variants) != 0) master_variants <- rbind(master_variants,
-                                                              fantom_variants)
-
-    # master_variants$trait <- omim_morbid
-    # print(head(master_variants))
+    if(length(fantom_variants) != 0){
+      master_variants <- rbind(master_variants, fantom_variants)
+    }
 
     if(verbose) print(paste0("Writing the list of genes to: ", outdir, "/genes_info.tsv"))
+    
     # We write the list of genes in a file.
-    utils::write.table(x = omim_all_genes, quote = FALSE, sep = "\t", row.names = FALSE,
-                       file = paste0(outdir, "/genes_info.tsv"))
+    utils::write.table(x = omim_all_genes, quote = FALSE, sep = "\t", 
+                       row.names = FALSE, file = paste0(outdir, "/genes_info.tsv"))
 
-    #_____________________________________________________________________________
+
+    #---------------------------------------------------------------------------
     # Getting variants associated with change of expression in GTEx (need tissues as input)
-    #_____________________________________________________________________________
+    #---------------------------------------------------------------------------
     if(!missing(gtex_tissues)){
       if(verbose) print("Getting the GTEx variants...")
       gtex_variants <- get_gtex_variants(tissue_files = gtex_tissues,
@@ -343,8 +355,9 @@ vargen_pipeline <- function(vargen_dir, omim_morbid_ids, fantom_corr = 0.25,
                                          snp_mart = snp_mart,
                                          verbose = verbose)
 
-      if(length(gtex_variants) != 0) master_variants <- rbind(master_variants,
-                                                              gtex_variants)
+      if(length(gtex_variants) != 0){
+        master_variants <- rbind(master_variants, gtex_variants)
+      }
 
     } else{
       if(verbose) print("No values for 'gtex_tissues', skipping GTEx step...")
@@ -363,12 +376,13 @@ vargen_pipeline <- function(vargen_dir, omim_morbid_ids, fantom_corr = 0.25,
       }
   }
 
-  #_____________________________________________________________________________
+
+  #-----------------------------------------------------------------------------
   # Getting variants associated to the disease in the gwas catalog
-  #_____________________________________________________________________________
+  #-----------------------------------------------------------------------------
   # GWAS variants (only if list of gwas traits were given)
   if(!missing(gwas_traits)){
-    if(verbose) print("Getting the gwas variants,,,")
+    if(verbose) print("Getting the gwas variants...")
     master_variants <- rbind(master_variants, get_gwas_variants(gwas_traits = gwas_traits,
                                                                 gwas_cat = gwas_cat))
   } else{
@@ -378,6 +392,7 @@ vargen_pipeline <- function(vargen_dir, omim_morbid_ids, fantom_corr = 0.25,
   # writing the variants data.frame to a file
   if(verbose) print(paste0("Writing the variants to ",
                            paste0(outdir, "/vargen_variants.tsv")))
+  
   utils::write.table(x = unique(master_variants), append = FALSE, quote = FALSE,
                      sep = "\t", row.names = FALSE,
                      file = paste0(outdir, "/vargen_variants.tsv"))
