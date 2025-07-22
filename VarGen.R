@@ -13,8 +13,8 @@
 #'
 #'
 #' @param install_dir the path to the installation folder (default = "./")
-#' @param gtex_version the version of gtex to download, only "v7" and "v8" are
-#' supported (default = "v8")
+#' @param gtex_version the version of gtex to download, only "v7", "v8" and v10 are
+#' supported (default = "v10")
 #' @param timeout the timeout set in options(), reading/downloading files online
 #' might fail with the default timeout of 60 seconds.
 #' @param verbose if TRUE will print progress messages (default = FALSE)
@@ -24,16 +24,29 @@
 #' @examples
 #' vargen_install("./", verbose = TRUE)
 #' @export
-vargen_install <- function(install_dir = "./", gtex_version = "v8", timeout = 10000, verbose = FALSE){
+vargen_install <- function(install_dir = "./", gtex_version = "v10", timeout = 10000, verbose = FALSE){
+  
+  #-----------------------------------------------------------------------------
+  # Timeout settings
+  #-----------------------------------------------------------------------------
   original_timeout <- getOption("timeout")
   options(timeout = timeout)
-  if(verbose) print(paste0("Setting the timeout to '", timeout, "'"))
 
+  if(verbose) print(paste0("Setting the timeout to '", timeout, "'"))
+  
+  
+  #-----------------------------------------------------------------------------
+  # Directory to download files
+  #-----------------------------------------------------------------------------  
   if (!file.exists(install_dir)){
     if(verbose) print(paste0("Creating folder '", install_dir, "'"))
     dir.create(install_dir)
   }
 
+
+  #-----------------------------------------------------------------------------
+  # Download FANTOM5 Enhancers
+  #-----------------------------------------------------------------------------
   if(verbose) print("Dowloading FANTOM's enhancer tss associations")
   # FANTOM5 TSS associations old link:
   #utils::download.file("http://enhancer.binf.ku.dk/presets/enhancer_tss_associations.bed",
@@ -45,25 +58,35 @@ vargen_install <- function(install_dir = "./", gtex_version = "v8", timeout = 10
 
   cat("\n")
 
+  
+  #-----------------------------------------------------------------------------
+  # Download LiftOver
+  #-----------------------------------------------------------------------------
   if(verbose) print("Downloading liftOver chain file from ucsc")
-  # liftOver file
-  utils::download.file(url = "http://hgdownload.cse.ucsc.edu/goldenPath/hg19/liftOver/hg19ToHg38.over.chain.gz",
+    utils::download.file(url = "http://hgdownload.cse.ucsc.edu/goldenPath/hg19/liftOver/hg19ToHg38.over.chain.gz",
                        destfile = paste0(install_dir, "/hg19ToHg38.over.chain.gz"))
+
   R.utils::gunzip(filename = paste0(install_dir, "/hg19ToHg38.over.chain.gz"),
                   skip = TRUE, remove = TRUE)
 
 
-  # download gwas file:
+  #-----------------------------------------------------------------------------
+  # Download GWAS catalog
+  #-----------------------------------------------------------------------------
   if(verbose) print("Downloading the gwas catalog file from ebi")
+
   gwasurl <- "https://www.ebi.ac.uk/gwas/api/search/downloads/full"
-  #gwasurl <- "ftp://ftp.ebi.ac.uk/pub/databases/gwas/releases/latest/gwas-catalog-associations.tsv"
+
   # gwasheaders contains the http header from the URL
   gwasheaders <- curlGetHeaders(url = gwasurl, redirect = TRUE, verify = TRUE)
+  
   # From the header, we can extract the line where the filename is
   gwasheaders <- gwasheaders[grep("filename", gwasheaders)]
+  
   # Then we extract the filname from the header line, which should resemble:
-  # "Content-Disposition: attachement; filename=gwas_catalog_v1.0-associations_e96_r2019-10-14.tsv\r\n"
+  # "Content-Disposition: attachement; filename=gwas_catalog_v1.0-associations_e114_r2025-05-13\r\n"
   gwasfilename <- unlist(strsplit(x = gwasheaders, split = "filename="))[2]
+  
   # This should remove new lines "\r", "\r\n" or "\n"
   gwasfilename <- gsub("\r?\n|\r", "", gwasfilename)
 
@@ -73,17 +96,37 @@ vargen_install <- function(install_dir = "./", gtex_version = "v8", timeout = 10
 
   cat("\n")
 
-  # Add gtex folder
-  if(verbose) print("Downloading GTEx variant association file... This may take a while")
-  if(gtex_version == "v7") {
+
+  #-----------------------------------------------------------------------------
+  # Download GTEx folder
+  #-----------------------------------------------------------------------------
+  if(verbose){
+    print("Downloading GTEx variant association file... This may take a while")
+  }
+  
+  if(gtex_version == "v7"){
     gtex_filename = "GTEx_Analysis_v7_eQTL.tar.gz"
-    gtex_url = paste0("https://storage.googleapis.com/adult-gtex/bulk-qtl/v8/single-tissue-cis-qtl/", gtex_filename)
-  } else if(gtex_version == "v8") {
+    gtex_url = paste0("https://storage.googleapis.com/adult-gtex/bulk-qtl/v7/single-tissue-cis-qtl/", 
+                      gtex_filename)
+    gtex_lookup_filename <- "GTEx_Analysis_2016-01-15_v7_WholeGenomeSeq_635Ind_PASS_AB02_GQ20_HETX_MISS15_PLINKQC.lookup_table.txt.gz"
+    gtex_lookup_url <- paste0("https://storage.googleapis.com/adult-gtex/references/v7/reference-tables/", 
+                              gtex_lookup_filename)
+  } else if(gtex_version == "v8"){
     gtex_filename = "GTEx_Analysis_v8_eQTL.tar"
-    # gtex_url = "https://storage.googleapis.com/gtex_analysis_v8/single_tissue_qtl_data/GTEx_Analysis_v8_eQTL.tar"
-    gtex_url = paste0("https://storage.googleapis.com/adult-gtex/bulk-qtl/v8/single-tissue-cis-qtl/", gtex_filename)
+    gtex_url = paste0("https://storage.googleapis.com/adult-gtex/bulk-qtl/v8/single-tissue-cis-qtl/", 
+                      gtex_filename)
+    gtex_lookup_filename <- "GTEx_Analysis_2017-06-05_v8_WholeGenomeSeq_838Indiv_Analysis_Freeze.lookup_table.txt.gz"
+    gtex_lookup_url <- paste0("https://storage.googleapis.com/adult-gtex/references/v8/reference-tables/", 
+                              gtex_lookup_filename)
+  } else if(gtex_version == "v10"){
+    gtex_filename = "GTEx_Analysis_v10_eQTL.tar"
+    gtex_url = paste0("https://storage.googleapis.com/adult-gtex/bulk-qtl/v10/single-tissue-cis-qtl/", 
+                      gtex_filename)
+    gtex_lookup_filename <- "GTEx_Analysis_2021-02-11_v10_WholeGenomeSeq_953Indiv.lookup_table.txt.gz"
+    gtex_lookup_url <- paste0("https://storage.googleapis.com/adult-gtex/references/v10/reference-tables/", 
+                              gtex_lookup_filename)
   } else {
-    stop(paste0("Please set 'gtex_version' as v7 or v8, current value: '", gtex_version, "'"))
+    stop(paste0("Please set 'gtex_version' as v7 or v8 or v10, current value: '", gtex_version, "'"))
   }
 
   # The tar file is considered as a binary file, so the "mode = wb" option is needed
@@ -102,12 +145,15 @@ vargen_install <- function(install_dir = "./", gtex_version = "v8", timeout = 10
 
   # Installing GTEx lookup table
   if(verbose) print("Downloading GTEx lookup table... This may take a while")
-  gtex_lookup_filename <- "GTEx_Analysis_2017-06-05_v8_WholeGenomeSeq_838Indiv_Analysis_Freeze.lookup_table.txt.gz"
-  gtex_lookup_url <- paste0("https://storage.googleapis.com/adult-gtex/references/v8/reference-tables/", gtex_lookup_filename)
+  
   utils::download.file(url = gtex_lookup_url,
                        destfile = paste0(install_dir, "/", gtex_lookup_filename),
                        mode = "wb")
 
+
+  #-----------------------------------------------------------------------------
+  # Timeout settings
+  #-----------------------------------------------------------------------------
   options(timeout = original_timeout)
   if(verbose) print(paste0("Resetting the timeout to previous value '", original_timeout, "'"))
 }
