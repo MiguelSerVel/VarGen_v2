@@ -249,10 +249,16 @@ get_gtex_variants <- function(tissue_files, omim_genes, gtex_lookup_file,
   list.variants.tissues <- vector('list', length(tissue_files))
   i <- 1
   for(file in tissue_files){
-    tissue_variants <- data.table::fread(select = c(1,2), sep = "\t", header = TRUE,
+    # Check if file is parquet file to read it
+    if(grepl("parquet", file, fixed = TRUE)){
+      tissue_variants <- arrow::read_parquet(file, 
+                                             col_select = c("gene_id", "variant_id"))
+    } else{
+      tissue_variants <- data.table::fread(select = c(1,2), sep = "\t", header = TRUE,
                                          file = file, stringsAsFactors = FALSE)
+    }
     # We get the tissue name from the filename
-    tissue <- sub(pattern = ".v[78].*",  replacement = "", x = basename(file))
+    tissue <- sub(pattern = "\\.v(7|8|10).*",  replacement = "", x = basename(file))
     tissue_variants$tissue <- paste0("gtex (", tissue, ")")
 
     # Tranforming the "ensembl ID" from GTEx to "stable ensembl gene id"
@@ -278,7 +284,7 @@ get_gtex_variants <- function(tissue_files, omim_genes, gtex_lookup_file,
                                            verbose = verbose)
     if(nrow(gtex_variants) > 0){
 
-      colnames(gtex_variants)[which(names(gtex_variants) == "rs_id_dbSNP151_GRCh38p7")] <- "rsid"
+      colnames(gtex_variants)[which(names(gtex_variants) == "rs_id")] <- "rsid"
 
       # GTEx use dbsnp v151. Some rsids have been merged. We can use biomart with
       # "synonym" to get the corresponding rsid in the new version:
