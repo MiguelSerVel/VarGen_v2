@@ -240,6 +240,15 @@ load_vcf_file <- function(vcf_file, memory_limit = 2, max_headlines = 1000){
   
   colnames(vcf_df) <- col_names
   
+  # Break down sample column following format column
+  format_keys <- strsplit(vcf_df$FORMAT, ":")[[1]]
+  sample_values <- strsplit(vcf_df[[ncol(vcf_df_1)]], ":")[[1]]
+  
+  # Create a named list and assign to new columns in the data.frame
+  for (i in seq_along(format_keys)) {
+    vcf_df[[format_keys[i]]] <- sample_values[i]
+  }
+  
   # Return dataframe with vcf file info
   return(vcf_df)
 }
@@ -283,7 +292,7 @@ compare_vcf <- function(vcf_df, rsid_df, memory_limit = 2, verbose = FALSE){
   
   # SQL query: join on df1.chrom = df2.chr and pos = pos
   query <- "
-    SELECT df2.*, df1.REF, df1.ALT, df1.QUAL
+    SELECT df2.*, df1.REF, df1.ALT, df1.QUAL, df1.GT, df1.AD, df1.DP, df1.GQ
     FROM vcf_df AS df1
     INNER JOIN rsid_df AS df2
     ON df2.chr = df1.CHROM AND df2.pos = df1.POS
