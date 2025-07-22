@@ -191,6 +191,13 @@ format_output <- function(chr, pos, rsid, ensembl_gene_id, hgnc_symbol) {
 #' @return a data.frame with the following columns:
 #' \itemize{
 #'   \item rsid (variant id)
+#'   \item vcf_ref: reference allele found in VCF files
+#'   \item vcf_alt: alternate allele found in VCF files
+#'   \item cadd_1000g_af: 1000g allele frequency worldwide
+#'   \item cadd_1000g_afr: 1000g allele frequency in african population
+#'   \item cadd_1000g_amr: 1000g allele frequency in american population
+#'   \item cadd_1000g_asn: 1000g allele frequency in asian population
+#'   \item cadd_1000g_eur: 1000g allele frequency in european population
 #'   \item cadd phred (phred score from CADD, higher more deleterious)
 #'   \item fathmm_xf_score (from 0 to 1, higher is more deleterious)
 #'   \item fathmm_xf_pred ("D"(DAMAGING) if score > 0.5, "N"(NEUTRAL) otherwise)
@@ -341,4 +348,31 @@ annotate_variants <- function(rsid, verbose = FALSE) {
                                                           x = rsid_annotated_df$clinical_significance))
 
   return(unique(rsid_annotated_df))
+}
+
+
+#' @title Annotate dataframe of variants using annotate_variants
+#' @description use annotate_variants to merge the annotations found for a 
+#' column of rsids.
+#'
+#' @param rsid_df dataframe with a column of variant IDs
+#' @param rsid_column name of the column containing the variants IDs
+#' @param verbose if TRUE will print progress messages (default = FALSE)
+#'
+#' @return the input data.frame with annotatiton columns merged with only unique
+#' variants
+#'
+#' @examples
+#' DM1_annotated <- annotate_dataframe(DM1, verbose = TRUE)
+#' @export
+annotate_dataframe <- function(rsid_df, rsid_column = "rsid", verbose = FALSE){
+  
+  # Call annotate_variants function to annotate variant dataframe
+  annotation_df <- annotate_variants(rsid_df[[rsid_column]], verbose = verbose)
+  
+  # Merge annotations with original dataframe
+  annotation_df <- merge(rsid_df, annotation_df, by = 'rsid')
+  
+  # Return result
+  return(unique(annotation_df))
 }
