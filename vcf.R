@@ -242,7 +242,7 @@ load_vcf_file <- function(vcf_file, memory_limit = 2, max_headlines = 1000){
   
   # Break down sample column following format column
   format_keys <- strsplit(vcf_df$FORMAT, ":")[[1]]
-  sample_values <- strsplit(vcf_df[[ncol(vcf_df_1)]], ":")[[1]]
+  sample_values <- strsplit(vcf_df[[ncol(vcf_df)]], ":")[[1]]
   
   # Create a named list and assign to new columns in the data.frame
   for (i in seq_along(format_keys)) {
