@@ -19,14 +19,23 @@ list_gtex_tissues <- function(gtex_dir){
 
   file_paths <- list.files(path = paste0(gtex_dir), full.names = TRUE)
   filenames <- list.files(path = paste0(gtex_dir), full.names = FALSE)
+    
+  # Check version (v7, v8, v10)
+  version_match <- regexpr("v\\d+", gtex_dir)
+  version <- regmatches(gtex_dir, version_match)
 
   # Selecting only the variant gene pairs files
-  var_gene_pairs_paths <- file_paths[grep(".signif_variant_gene_pairs.txt.gz", file_paths)]
-  var_gene_pairs_names <- filenames[grep(".signif_variant_gene_pairs.txt.gz", filenames)]
+  if(version == "v10"){
+    var_gene_pairs_paths <- file_paths[grep(".signif_pairs", file_paths)]
+    var_gene_pairs_names <- filenames[grep(".signif_pairs", filenames)]
+  } else{
+    var_gene_pairs_paths <- file_paths[grep(".signif_variant_gene_pairs.txt.gz", file_paths)]
+    var_gene_pairs_names <- filenames[grep(".signif_variant_gene_pairs.txt.gz", filenames)]
+  }
 
   # We get the tissue name, this will serve as a keyword to select the tissue
-  keywords <- sub(pattern = ".v[78].*",  replacement = "", x = var_gene_pairs_names)
-
+  keywords <- sub(pattern = "\\.v(7|8|10).*",  replacement = "", x = var_gene_pairs_names)
+  
   return(data.frame(keywords = keywords, filepaths = var_gene_pairs_paths))
 }
 
