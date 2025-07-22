@@ -472,9 +472,9 @@ vargen_custom <- function(vargen_dir, gene_ids, fantom_corr = 0.25, outdir = "./
     dir.create(outdir)
   }
 
-  #_____________________________________________________________________________
+  #-----------------------------------------------------------------------------
   # Loading the necessary resources
-  #_____________________________________________________________________________
+  #-----------------------------------------------------------------------------
   if(missing(gene_mart) || class(gene_mart) != 'Mart'){
     if(verbose) print("Connecting to the gene mart...")
     gene_mart <- connect_to_gene_ensembl()
@@ -509,15 +509,24 @@ vargen_custom <- function(vargen_dir, gene_ids, fantom_corr = 0.25, outdir = "./
     stop(paste0("Can not read: ", hg19ToHg38.over.chain, ", stopping now."))
   }
 
-  gtex_lookup_file <- paste0(vargen_dir, "/GTEx_Analysis_2017-06-05_v8_WholeGenomeSeq_838Indiv_Analysis_Freeze.lookup_table.txt.gz")
-  if(!file.exists(gtex_lookup_file)){
-    stop(paste0("Can not read: ", gtex_lookup_file, ", stopping now."))
+  # Check the gtex lookup files downloaded
+  gtex_lookup_files <- list.files(path = vargen_dir, 
+                                  pattern = "\\.lookup_table\\.txt\\.gz$", 
+                                  full.names = TRUE)
+  
+  # Check if there are any lookup files
+  if(length(gtex_lookup_files) == 0){
+    stop(paste0("Can not find a gtex lookup file. Stopping now."))
   }
 
-  master_variants <- data.frame()
-  #_____________________________________________________________________________
+  # Get the last one (the newest one)
+  gtex_lookup_file <- gtex_lookup_files[length(gtex_lookup_files)]
+  
+  
+  #-----------------------------------------------------------------------------
   # Getting variants from genes related to OMIM disease
-  #_____________________________________________________________________________
+  #-----------------------------------------------------------------------------
+  master_variants <- data.frame()
   # Get the genes related to the phenotype:
   genes_info <- biomaRt::getBM(attributes = c("ensembl_gene_id", "chromosome_name",
                                               "start_position", "end_position",
@@ -540,9 +549,9 @@ vargen_custom <- function(vargen_dir, gene_ids, fantom_corr = 0.25, outdir = "./
     # Replacing "omim" by "gene"
     master_variants$source <- "gene"
 
-    #_____________________________________________________________________________
+    #---------------------------------------------------------------------------
     # Getting variants on the enhancers of the OMIM genes, using FANTOM5
-    #_____________________________________________________________________________
+    #---------------------------------------------------------------------------
     fantom_variants <- get_fantom5_variants(fantom_df = fantom_df,
                                             omim_genes = genes_info,
                                             corr_threshold = fantom_corr,
@@ -552,9 +561,9 @@ vargen_custom <- function(vargen_dir, gene_ids, fantom_corr = 0.25, outdir = "./
     if(length(fantom_variants) != 0) master_variants <- rbind(master_variants,
                                                               fantom_variants)
 
-    #_____________________________________________________________________________
+    #---------------------------------------------------------------------------
     # Getting variants associated with change of expression in GTEx (need tissues as input)
-    #_____________________________________________________________________________
+    #---------------------------------------------------------------------------
     if(!missing(gtex_tissues)){
       if(verbose) print("Getting the GTEx variants...")
       gtex_variants <- get_gtex_variants(tissue_files = gtex_tissues,
@@ -576,9 +585,9 @@ vargen_custom <- function(vargen_dir, gene_ids, fantom_corr = 0.25, outdir = "./
     print(paste0("No genes found for: ", paste(gene_ids, collapse = ", ")))
   }
 
-  #_____________________________________________________________________________
+  #-----------------------------------------------------------------------------
   # Getting variants associated to the disease in the gwas catalog
-  #_____________________________________________________________________________
+  #-----------------------------------------------------------------------------
   # GWAS variants (only if list of gwas traits were given)
   if(!missing(gwas_traits)){
     if(verbose) print("Getting the gwas variants...")
@@ -658,7 +667,7 @@ vargen_visualisation <- function(annotated_snps, outdir = "./", rsid_highlight,
 
   # Get genes position for omim genes (not gwas / gtex genes as we currently limit
   # the plot to start and stop of the gene, and gwas snps often lies outside these coordinates)
-  omim_genes <- annotated_snps[annotated_snps$source == "omim","ensembl_gene_id"]
+  omim_genes <- annotated_snps[annotated_snps$source %in% c("gene", "omim"),"ensembl_gene_id"]
   genes_list <- biomaRt::getBM(attributes = c("ensembl_gene_id", "chromosome_name",
                                               "start_position", "end_position",
                                               "hgnc_symbol"),
@@ -739,7 +748,7 @@ vargen_visualisation <- function(annotated_snps, outdir = "./", rsid_highlight,
       }
 
       gene_track <- Gviz::UcscTrack(background.title = bckg_col, fontsize = 18,
-                                    genome = "hg38", track = "knownGene",
+                                    genome = "hg38", track = "All GENCODE V48",
                                     chromosome = genes_list[i,]$chromosome_name,
                                     from = start_plot, to = end_plot,
                                     trackType = "GeneRegionTrack",
