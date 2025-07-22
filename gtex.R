@@ -35,7 +35,7 @@ list_gtex_tissues <- function(gtex_dir){
 
   # We get the tissue name, this will serve as a keyword to select the tissue
   keywords <- sub(pattern = "\\.v(7|8|10).*",  replacement = "", x = var_gene_pairs_names)
-  
+
   return(data.frame(keywords = keywords, filepaths = var_gene_pairs_paths))
 }
 
@@ -106,48 +106,100 @@ convert_gtex_to_rsids <- function(gtex_variants, gtex_lookup_file, verbose = FAL
 
   # Check the gtex build (b37 or b38)
   gtex_build <- unique(sub(".*_", "", gtex_variants$variant_id))
+  
   if(length(gtex_build) > 1){
     stop(paste0("All the GTEx variants are not in the same build, builds detected: ",
                 paste(gtex_build, collapse = ", ")))
   }
 
   if(verbose) print("Loading GTEx lookup table... Please be patient")
-  # Column 1, 7 and 8 contains the GTEx ids v8, rsids and GTEx ids v7 respectively
-  gtex_lookup <- data.table::fread(select = c(1,7,8), sep = "\t", header = TRUE,
-                                   file = gtex_lookup_file, stringsAsFactors = FALSE)
+  
+  # Read column names of gtex_lookup_file
+  header <- data.table::fread(gtex_lookup_file, nrows = 0)
+  
+  col1 <- names(header)[1]
+  col7 <- names(header)[7]
+  col8 <- names(header)[8]
+  
+  #-----------------------------------------------------------------------------
+  # duckDB for ultra fast data management
+  #-----------------------------------------------------------------------------
+  # Path to DuckDB file
+  db_path <- "./duckdb_database.duckdb"
+  
+  # Open duckDB connection
+  con <- duckdb::dbConnect(duckdb::duckdb(), dbdir = db_path)
+  
+  # Set RAM usage limit to 2GB
+  DBI::dbExecute(con, "SET memory_limit='2GB'")
 
+  # Read GTEx lookup table using duckDB
+  sql_create_lookup <- sprintf("
+    CREATE OR REPLACE TABLE lookup AS
+    SELECT *
+    FROM(
+      SELECT
+        %s AS variant_id,
+        %s AS rs_id,
+        %s AS variant_id_b37
+      FROM read_csv_auto('%s', delim='\t', compression='gzip')
+    )
+  ", col1, col7, col8, gtex_lookup_file)
+  
+  DBI::dbExecute(con, sql_create_lookup)
+  
+  # Create duckDB table for variants
+  DBI::dbWriteTable(con, "variants", gtex_variants, overwrite = TRUE)
+  
+  if(verbose){
+    print("Joining GTEx variants and lookup tables...")
+  }
+  
+  # Construct the join query depending on the build
   # In the GTEx lookup table:
   # "variant_id" correspond to the variants from b38
   # "variant_id_b37" correspond to the variants from b37
   # However, from the tissue files, the name is always "variant_id" regardless
   # of the GTEx version
-  if(gtex_build == "b38"){
-    # Subsetting the lookup table to make merge faster
-    gtex_lookup <- gtex_lookup[gtex_lookup$variant_id %in% gtex_variants$variant_id,]
-
-    gtex_variants_rsids <- merge(x = gtex_variants, y = gtex_lookup,
-                                 by = "variant_id", all.x = TRUE)
+  join_query <- if (gtex_build == "b38") {
+    "
+      SELECT variants.*, lookup.rs_id
+      FROM variants 
+      LEFT JOIN lookup
+      ON variants.variant_id = lookup.variant_id
+    "
+  } else {
+    "
+      SELECT variants.*, lookup.rs_id
+      FROM variants
+      LEFT JOIN lookup
+      ON variants.variant_id = lookup.variant_id_b37
+    "
   }
+  
+  # Perform the join
+  gtex_variants_rsids <- DBI::dbGetQuery(con, join_query)
 
-  if(gtex_build == "b37"){
-    # Subsetting the lookup table to make merge faster
-    gtex_lookup <- gtex_lookup[gtex_lookup$variant_id_b37 %in% gtex_variants$variant_id,]
-
-    gtex_variants_rsids <- merge(x = gtex_variants, y = gtex_lookup,
-                                 by.x = "variant_id", by.y = "variant_id_b37",
-                                 all.x = TRUE)
-  }
-
+  # Clean up
+  DBI::dbDisconnect(con)
+  file.remove(db_path)
+  
+  #-----------------------------------------------------------------------------
+  # End of duckDB usage
+  #-----------------------------------------------------------------------------
+  
   # If verbose on, tell the user how many gtex snps have no corresponding rsids
-  if(verbose){
-    n_removed <- nrow(gtex_variants_rsids[gtex_variants_rsids$rs_id_dbSNP151_GRCh38p7 == ".",])
-    print(paste0("Number of GTEx ids removed (no corresponding rsid): ", n_removed))
+  if (verbose) {
+    n_removed <- sum(gtex_variants_rsids$rs_id_column == ".")
+    message("Number of GTEx ids removed (no corresponding rsid): ", n_removed)
   }
-
-  rm(gtex_lookup)
-
+  
+  data.table::fwrite(gtex_variants_rsids, file = "./gtex_variants_rsids.tsv",
+                     sep = "\t",      # tab-separated
+                     quote = FALSE)   # no quotes around strings
+  
   # We remove gtex ids without a rsid:
-  return(gtex_variants_rsids[gtex_variants_rsids$rs_id_dbSNP151_GRCh38p7 != ".",])
+  return(gtex_variants_rsids[gtex_variants_rsids$rs_id != ".",])
 }
 
 
