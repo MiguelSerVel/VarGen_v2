@@ -221,6 +221,36 @@ annotate_variants <- function(rsid, verbose = FALSE) {
   } else {
     cadd_phred <- unlist(rsid_annotated$cadd.phred)
   }
+    
+  if(is.null(rsid_annotated$cadd.1000g.af)){
+    cadd_1000g_af <- NA
+  } else {
+    cadd_1000g_af <- unlist(rsid_annotated$cadd.1000g.af)
+  }
+  
+  if(is.null(rsid_annotated$cadd.1000g.afr)){
+    cadd_1000g_afr <- NA
+  } else {
+    cadd_1000g_afr <- unlist(rsid_annotated$cadd.1000g.afr)
+  }
+  
+  if(is.null(rsid_annotated$cadd.1000g.amr)){
+    cadd_1000g_amr <- NA
+  } else {
+    cadd_1000g_amr <- unlist(rsid_annotated$cadd.1000g.amr)
+  }
+  
+  if(is.null(rsid_annotated$cadd.1000g.asn)){
+    cadd_1000g_asn <- NA
+  } else {
+    cadd_1000g_asn <- unlist(rsid_annotated$cadd.1000g.asn)
+  }
+  
+  if(is.null(rsid_annotated$cadd.1000g.eur)){
+    cadd_1000g_eur <- NA
+  } else {
+    cadd_1000g_eur <- unlist(rsid_annotated$cadd.1000g.eur)
+  }
 
   if(is.null(rsid_annotated$dbnsfp.fathmm.xf.coding_score)){
     fathmm_score <- NA
@@ -282,9 +312,14 @@ annotate_variants <- function(rsid, verbose = FALSE) {
   }
 
   rsid_annotated_df <- data.frame(rsid = unlist(rsid_annotated$query),
-                                  ref = vcf.ref,
-                                  alt = vcf.alt,
+                                  vcf_ref = vcf.ref,
+                                  vcf_alt = vcf.alt,
                                   cadd_phred = cadd_phred,
+                                  cadd_1000g_af = cadd_1000g_af,
+                                  cadd_1000g_afr = cadd_1000g_afr,
+                                  cadd_1000g_amr = cadd_1000g_amr,
+                                  cadd_1000g_asn = cadd_1000g_asn,
+                                  cadd_1000g_eur = cadd_1000g_eur,
                                   fathmm_xf_score = fathmm_score,
                                   fathmm_xf_pred = fathmm_pred,
                                   annot_type = annot_type,
