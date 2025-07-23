@@ -87,27 +87,6 @@ prepare_fantom_enhancers <- function(enhancers_file, corr_threshold = 0.25){
 #' }
 #'
 
-# vargen_install(install_dir = "./vargen_data/")
-# fantom_df <- prepare_fantom("./vargen_data/enhancer_tss_associations.bed")
-# get_fantom5_enhancers_from_hgnc(fantom_df = fantom_df,
-#                                 hgnc_symbols = "FOXP3",
-#                                 corr_threshold = 0.30)
-get_fantom5_enhancers_from_hgnc <- function(fantom_df, hgnc_symbols,
-                                            corr_threshold = 0.25){
-  # Get the enhancers with a decent level of correlations & significance
-  # Correlation is Pearson as a z-score:
-  # "(pearson corr - (mean of random motifs)) / std(pearson of random motifs)"
-  # https://genomebiology.biomedcentral.com/articles/10.1186/s13059-014-0560-6
-  # A z-score greater than 0 represents an element greater than the mean, this
-  # means "more correlation than random motifs"
-  enhancers_corr <- unique(subset(fantom_df,
-                                  fantom_df$corr >= corr_threshold,# & fdr < fdr_threshold,
-                                  select = c("chr", "start", "end", "symbol", "corr", "fdr"))
-  )
-  # Get list of enhancer related to list of genes
-  return(enhancers_corr[(enhancers_corr$symbol %in% hgnc_symbols),])
-}
-
 
 #' @title Get variants on the enhancers of the list of genes given as input
 #' @description FANTOM5 is used to get the enhancers of the genes, then the variants
@@ -143,31 +122,72 @@ get_fantom5_enhancers_from_hgnc <- function(fantom_df, hgnc_symbols,
 # vargen_install(install_dir = "./vargen_data/")
 # fantom_df <- prepare_fantom("./vargen_data/enhancer_tss_associations.bed")
 # get_fantom5_variants(fantom_df, DM1_genes, 0.25, "hg19ToHg38.over.chain")
-get_fantom5_variants <- function(fantom_df, omim_genes, corr_threshold = 0.25,
-                                 hg19ToHg38.over.chain, verbose = FALSE) {
+get_fantom5_variants <- function(promoters_df, enhancers_df, omim_genes,
+                                 hg19ToHg38.over.chain, enhancer_gap = 100000,
+                                 verbose = FALSE) {
   fantom_variants <- data.frame()
   list.variants <- vector('list', nrow(omim_genes))
 
   for(gene in 1:nrow(omim_genes)){
-    enhancers_df <- get_fantom5_enhancers_from_hgnc(fantom_df = fantom_df,
-                                                    hgnc_symbols = omim_genes[gene, "hgnc_symbol"],
-                                                    corr_threshold = corr_threshold)
-    if(nrow(enhancers_df) != 0) {
-      enhancers_df <- GenomicRanges::makeGRangesFromDataFrame(enhancers_df,
-                                                              keep.extra.columns = TRUE)
-      enhancers_df <- unlist(rtracklayer::liftOver(enhancers_df, rtracklayer::import.chain(hg19ToHg38.over.chain)))
-      fantom_locs <- paste0(GenomeInfoDb::seqnames(enhancers_df), ":",
-                            BiocGenerics::start(enhancers_df)-1, ":",
-                            BiocGenerics::end(enhancers_df))
-      fantom_locs <- sub("^chr", "", fantom_locs)
-
-
-      variants_loc <- get_variants_from_locations(fantom_locs,
-                                                  verbose = verbose)
-      if(length(variants_loc) != 0){
+    
+    # Get only promoters from the genes of interest
+    promoters <- promoters_df[(promoters_df$symbol == omim_genes[gene, "hgnc_symbol"]),]
+    
+    if(nrow(promoters) != 0) {
+      # Get promoters with hg19 build and hg38 build
+      promoters_19 <- promoters[(promoters$genome == "hg19"),]
+      promoters_38 <- promoters[(promoters$genome == "hg38"),]
+      
+      # Convert each data.frame to granges object
+      promoters_19_gr <- GenomicRanges::GRanges(seqnames = promoters_19$chrom,
+                                                ranges = IRanges::IRanges(promoters_19$chromStart,
+                                                                          promoters_19$chromEnd))
+      promoters_38_gr <- GenomicRanges::GRanges(seqnames = promoters_38$chrom,
+                                                ranges = IRanges::IRanges(promoters_38$chromStart,
+                                                                          promoters_38$chromEnd))
+      
+      # Perform liftover ono hg19 build and join both objects
+      promoters_19_gr <- unlist(rtracklayer::liftOver(promoters_19_gr, 
+                                                      rtracklayer::import.chain(hg19ToHg38.over.chain)))
+      promoters_gr <- c(promoters_19_gr, promoters_38_gr)
+      
+      # Obtain genomic ranges object for enhancers
+      enhancers_gr <- GenomicRanges::GRanges(seqnames = enhancers_df$chrom,
+                                             ranges = IRanges::IRanges(enhancers_df$chromStart,
+                                                                       enhancers_df$chromEnd))
+      
+      # Take the position of enhancers that are 100kb from the promoters
+      nearby_pairs <- GenomicRanges::findOverlaps(promoters_gr, enhancers_gr, 
+                                                  maxgap = enhancer_gap)
+      
+      enhancers_gr <- enhancers_gr[S4Vectors::subjectHits(nearby_pairs)]
+      
+      # Obtain locations for promoters and enhancers
+      promoters_locs <- paste0(GenomeInfoDb::seqnames(promoters_gr), ":",
+                               BiocGenerics::start(promoters_gr)-1, ":",
+                               BiocGenerics::end(promoters_gr))
+      promoters_locs <- sub("^chr", "", promoters_locs)
+      
+      enhancers_locs <- paste0(GenomeInfoDb::seqnames(enhancers_gr), ":",
+                               BiocGenerics::start(enhancers_gr)-1, ":",
+                               BiocGenerics::end(enhancers_gr))
+      enhancers_locs <- sub("^chr", "", enhancers_locs)
+      
+      fantom_locs <- c(promoters_locs, enhancers_locs)
+      
+      # Filter fantom_locs
+      fantom_locs <- fantom_locs[fantom_locs != "::"]
+      
+      # Get variants from all locations found
+      variants_locs <- get_variants_from_locations(fantom_locs,
+                                                   verbose = TRUE)
+      variants_locs <- unique(variants_locs)
+      
+    
+      if(length(variants_locs) != 0){
         enhancer_variants <- cbind(ensembl_gene_id = omim_genes[gene, "ensembl_gene_id"],
                                    hgnc_symbol = omim_genes[gene, "hgnc_symbol"],
-                                   variants_loc)
+                                   variants_locs)
 
         enhancer_variants_df <- format_output(chr = unlist(enhancer_variants$seq_region_name),
                                               pos =  unlist(enhancer_variants$start),
