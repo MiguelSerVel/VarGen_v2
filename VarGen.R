@@ -190,6 +190,8 @@ vargen_install <- function(install_dir = "./", gtex_version = "v10", timeout = 1
 #' enhancer/gene association valid (default: 0.25).
 #' A z-score greater than 0 represents an element greater than the mean, this
 #' means that this association has more correlation than random motifs.
+#' @param fantom_enhancer_gap the length in bases to look for enhancers from a 
+#' given chromosomal position for promoters
 #' @param outdir the output directory, some files will be written during the
 #' running of this function
 #' @param gtex_tissues a vector containing the name of the "signif_variant_gene_pairs.txt.gz"
@@ -236,8 +238,9 @@ vargen_install <- function(install_dir = "./", gtex_version = "v10", timeout = 1
 #'                        gwas_traits = "Type 1 diabetes", verbose = TRUE)
 #' @export
 vargen_pipeline <- function(vargen_dir, omim_morbid_ids, fantom_corr = 0.25,
-                            outdir = "./", gtex_tissues, gwas_traits,
-                            gene_mart, snp_mart, verbose = FALSE) {
+                            fantom_enhancer_gap = 100000, outdir = "./", 
+                            gtex_tissues, gwas_traits, gene_mart, snp_mart, 
+                            verbose = FALSE) {
 
   if(missing(omim_morbid_ids)){
     stop("Please provide at least one OMIM morbid id. Stopping now.")
@@ -277,12 +280,14 @@ vargen_pipeline <- function(vargen_dir, omim_morbid_ids, fantom_corr = 0.25,
     }
   }
 
-  if(verbose) print(paste0("Reading the enhancer tss association file for FANTOM5... '" ,
-                           vargen_dir, "/enhancer_tss_associations.bed'"))
+  if(verbose) print(paste0("Reading the promoters file for FANTOM5... '" ,
+                           vargen_dir, "hg38_liftover+new_CAGE_peaks_phase1and2_ann.txt'"))
   
   promoters_df <- prepare_fantom_promoters(paste0(vargen_dir,
                                                   "/hg38_liftover+new_CAGE_peaks_phase1and2_ann.txt"))
-                                                  
+  
+  if(verbose) print(paste0("Reading the enhancers file for FANTOM5... '" ,
+                           vargen_dir, "F5.hg38.enhancers.bed'"))                               
   enhancers_df <- prepare_fantom_enhancers(paste0(vargen_dir,
                                                   "/F5.hg38.enhancers.bed"),
                                            corr_threshold = fantom_corr)
@@ -326,7 +331,7 @@ vargen_pipeline <- function(vargen_dir, omim_morbid_ids, fantom_corr = 0.25,
       omim_all_genes <- rbind(omim_all_genes, omim_genes)
     }
   }
-
+  
   if(nrow(omim_all_genes) > 0){
     omim_all_genes <- unique(omim_all_genes)
 
@@ -342,10 +347,11 @@ vargen_pipeline <- function(vargen_dir, omim_morbid_ids, fantom_corr = 0.25,
     #---------------------------------------------------------------------------
 
     # We get the variants on the enhancers of the genes:
-    fantom_variants <- get_fantom5_variants(fantom_df = fantom_df,
+    fantom_variants <- get_fantom5_variants(promoters_df = promoters_df,
+                                            enhancers_df = enhancers_df,
                                             omim_genes = omim_all_genes,
-                                            corr_threshold = fantom_corr,
                                             hg19ToHg38.over.chain = hg19ToHg38.over.chain,
+                                            enhancer_gap = fantom_enhancer_gap,
                                             verbose = verbose)
 
     if(length(fantom_variants) != 0){
