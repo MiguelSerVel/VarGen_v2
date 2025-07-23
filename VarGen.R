@@ -49,10 +49,6 @@ vargen_install <- function(install_dir = "./", gtex_version = "v10", timeout = 1
   #-----------------------------------------------------------------------------
   if(verbose) print("Dowloading FANTOM's enhancer tss associations")
 
-  # FANTOM5 new link:
-  # utils::download.file("https://slidebase.binf.ku.dk/human_enhancers/presets/serve/enhancer_tss_associations",
-  #                      destfile = paste0(install_dir, "/enhancer_tss_associations.bed"))
-  
   # FANTOM5 enhancers
   utils::download.file("https://fantom.gsc.riken.jp/5/datafiles/reprocessed/hg38_latest/extra/enhancer/F5.hg38.enhancers.bed.gz",
                        destfile = paste0(install_dir, "/F5.hg38.enhancers.bed.gz"))
