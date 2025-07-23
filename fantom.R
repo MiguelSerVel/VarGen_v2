@@ -1,35 +1,66 @@
 # ---- FANTOM ----
 
-#' @title Generate data.frame from FANTOM5 enhancer file
-#' @description Prepare FANTOM5 for \code{\link{get_fantom5_enhancers_from_hgnc}}
+#' @title Generate data.frame from FANTOM5 promoters file
+#' @description Prepare FANTOM5 promoters file for
+#'  \code{\link{get_fantom5_enhancers_from_hgnc}}
 #'
-#' @param enhancer_tss_association the "enhancer_tss_associations.bed" file from FANTOM5.
+#' @param promoters_file the "hg38_liftover+new_CAGE_peaks_phase1and2_ann.txt" 
+#' file from FANTOM5.
 #' The file can be downloaded here:
-#' https://slidebase.binf.ku.dk/human_enhancers/presets/serve/enhancer_tss_associations
+#' https://fantom.gsc.riken.jp/5/datafiles/reprocessed/hg38_latest/extra/CAGE_peaks_expression/hg38_liftover+new_CAGE_peaks_phase1and2_ann.txt.gz
 #' @return a data.frame containing the file information
-prepare_fantom <- function(enhancer_tss_association) {
-  # TSS = Transcripton Start Site
-  fantom <- utils::read.delim(enhancer_tss_association, header = F,
-                              stringsAsFactors = FALSE)
+prepare_fantom_promoters <- function(promoters_file) {
+  # Read promoters table
+  promoters <- utils::read.delim(promoters_file, header = T,
+                                 comment.char = "#", stringsAsFactors = FALSE)
+  
+  descriptions <- promoters$short_description
+  
+  pattern <- "(.*)::(.*):(\\d+)\\.\\.(\\d+),([+-]);(.*)"
+  promoters <- strcapture(pattern,
+                          promoters[,1],
+                          data.frame(genome=character(),
+                                     chrom=character(),
+                                     chromStart=integer(),
+                                     chromEnd=integer(),
+                                     strand=character(),
+                                     name=character()))
+  
+  # Get HGNC symbols
+  promoters$symbol <- sub(".*@", "", descriptions)
 
-  colnames(fantom) <- c("chrom", "chromStart", "chromEnd", "name", "score",
-                        "strand", "thickStart", "thickEnd", "itemRgb",
-                        "blockCount", "blockSizes", "chromStarts")
+  return(promoters)
+}
 
-  # The enhancer position correspond to the 4th column of the bed file
-  # SO we split it by ";" and get the chr, start, stop and gene symbol.
-  fantom_df <- as.data.frame(splitstackshape::cSplit(fantom, splitCols="name",
-                                                     sep=";", direction="wide"))
 
-  locs <- strsplit(as.character(fantom_df$name_1),"[:-]")
-  fantom_df$chr <- sapply(locs,"[",1)
-  fantom_df$start <- as.numeric(sapply(locs,"[",2))
-  fantom_df$end <- as.numeric(sapply(locs,"[",3))
-  fantom_df$symbol <- fantom_df$name_3
-  fantom_df$corr <- sub("R:","",fantom_df$name_4)
-  fantom_df$fdr <- sub("FDR:","",fantom_df$name_5)
-
-  return(fantom_df)
+#' @title Generate data.frame from FANTOM5 enhancers file
+#' @description Prepare FANTOM5 promoters file for
+#'  \code{\link{get_fantom5_enhancers_from_hgnc}}
+#'
+#' @param promoters_file the "F5.hg38.enhancers.bed" file from FANTOM5.
+#' The file can be downloaded here:
+#' https://fantom.gsc.riken.jp/5/datafiles/reprocessed/hg38_latest/extra/enhancer/F5.hg38.enhancers.bed.gz
+#' @return a data.frame containing the file information
+prepare_fantom_enhancers <- function(enhancers_file, corr_threshold = 0.25){
+  # Get enhancers from file
+  enhancers <- utils::read.delim(enhancers_file, header = F,
+                                 stringsAsFactors = FALSE)
+  
+  colnames(enhancers) <- c("chrom", "chromStart", "chromEnd", "name", "score",
+                           "strand", "thickStart", "thickEnd", "itemRgb",
+                           "blockCount", "blockSizes", "chromStarts")
+  
+  # Get the enhancers with a decent level of correlations & significance
+  # Correlation is Pearson as a z-score:
+  # "(pearson corr - (mean of random motifs)) / std(pearson of random motifs)"
+  # https://genomebiology.biomedcentral.com/articles/10.1186/s13059-014-0560-6
+  # A z-score greater than 0 represents an element greater than the mean, this
+  # means "more correlation than random motifs"
+  # score = correlation*1000
+  score_threshold <- corr_threshold*1000
+  enhancers <- enhancers[(enhancers$score >= score_threshold),]
+  
+  return(enhancers)
 }
 
 
