@@ -2,13 +2,21 @@
 
 #' @title Generate data.frame from FANTOM5 promoters file
 #' @description Prepare FANTOM5 promoters file for
-#'  \code{\link{get_fantom5_enhancers_from_hgnc}}
+#'  \code{\link{get_fantom5_variants}}
 #'
 #' @param promoters_file the "hg38_liftover+new_CAGE_peaks_phase1and2_ann.txt" 
 #' file from FANTOM5.
 #' The file can be downloaded here:
 #' https://fantom.gsc.riken.jp/5/datafiles/reprocessed/hg38_latest/extra/CAGE_peaks_expression/hg38_liftover+new_CAGE_peaks_phase1and2_ann.txt.gz
-#' @return a data.frame containing the file information
+#' @return a data.frame containing the file information with the following columns:
+#' \itemize{
+#'   \item genome (either hg19 or hg38)
+#'   \item chrom (chromosome)
+#'   \item chromStart (start position of the promoter site)
+#'   \item chromEnd (end position of the enhancer site)
+#'   \item name (promoter ID)
+#'   \item symbol (hgnc symbol)
+#'   }
 prepare_fantom_promoters <- function(promoters_file) {
   # Read promoters table
   promoters <- utils::read.delim(promoters_file, header = T,
@@ -35,12 +43,30 @@ prepare_fantom_promoters <- function(promoters_file) {
 
 #' @title Generate data.frame from FANTOM5 enhancers file
 #' @description Prepare FANTOM5 promoters file for
-#'  \code{\link{get_fantom5_enhancers_from_hgnc}}
+#'  \code{\link{get_fantom5_variants}}
 #'
 #' @param promoters_file the "F5.hg38.enhancers.bed" file from FANTOM5.
 #' The file can be downloaded here:
 #' https://fantom.gsc.riken.jp/5/datafiles/reprocessed/hg38_latest/extra/enhancer/F5.hg38.enhancers.bed.gz
-#' @return a data.frame containing the file information
+#' @param corr_threshold the minimum correlation (z-score) to consider a
+#' enhancer/gene association valid (default: 0.25). A z-score greater than 0
+#' represents an element greater than the mean, this means that this association
+#'  has more correlation than random motifs.
+#' @return a data.frame containing the file information with the following columns:
+#' \itemize{
+#'   \item chrom (chromosome)
+#'   \item chromStart (start position of the enhancer site)
+#'   \item chromEnd (end position of the enhancer site)
+#'   \item name (string with chromosome, start and end positions)
+#'   \item score ( = correlation*1000)
+#'   \item strand (+, -, or . (for unknown or not strand-specific enhancers))
+#'   \item thichStart (start of the "thick" region used in UCSC Genome Browser)
+#'   \item thickEnd (end of the "thick" region used in UCSC Genome Browser)
+#'   \item itemRgb (RGB colour code)
+#'   \item blockCount (number of blocks)
+#'   \item blockSizes (comma-separated list of block sizes)
+#'   \item chromStarts (comma-separated list of start offsets)
+#'   }
 prepare_fantom_enhancers <- function(enhancers_file, corr_threshold = 0.25){
   # Get enhancers from file
   enhancers <- utils::read.delim(enhancers_file, header = F,
@@ -64,30 +90,6 @@ prepare_fantom_enhancers <- function(enhancers_file, corr_threshold = 0.25){
 }
 
 
-#' @title Get the enhancers associated to certain genes from FANTOM5
-#' @description from the FANTOM5 dataset, get the enhancers associated to the
-#' genes using the HGNC symbols, the association must pass the correlation threshold given
-#' by the user. Is used internally by \code{\link{get_fantom5_variants}}
-#'
-#' @param fantom_df the output of \code{\link{prepare_fantom}}
-#' @param hgnc_symbols vector of HUGO ids for the genes of interest
-#' @param corr_threshold the minimum correlation (z-score) to consider a
-#' enhancer/gene assocation valid (default: 0.25).
-#' A z-score greater than 0 represents an element greater than the mean, this means
-#' that this association has more correlation than random motifs.
-#' @return a subset of the FANTOM5 data.frame containing the information about the
-#' enhancers. The data.frame contains the following columns
-#' \itemize{
-#'   \item chr (chromosome)
-#'   \item start (start of the enhancers)
-#'   \item end (end of the enhancers)
-#'   \item symbol (HGNC symbol of the gene associated to the enhancer)
-#'   \item corr (correlation z-score from FANTOM5)
-#'   \item fdr (False Discovery Rate)
-#' }
-#'
-
-
 #' @title Get variants on the enhancers of the list of genes given as input
 #' @description FANTOM5 is used to get the enhancers of the genes, then the variants
 #' located on the enhancers are fetched with \code{\link{get_variants_from_locations}}
@@ -97,10 +99,8 @@ prepare_fantom_enhancers <- function(enhancers_file, corr_threshold = 0.25){
 #'
 #' @param fantom_df the output of \code{\link{prepare_fantom}}
 #' @param omim_genes output from \code{\link{get_omim_genes}}
-#' @param corr_threshold the minimum correlation (z-score) to consider a
-#' enhancer/gene association valid (default: 0.25). A z-score greater than 0
-#' represents an element greater than the mean, this means that this association
-#'  has more correlation than random motifs.
+#' @param enhancer_gap the length in bases to look for enhancers from a 
+#' given chromosomal position for promoters (default: 100000)
 #' @param hg19ToHg38.over.chain the chain file to liftOver locations from
 #' hg19 to hg38.
 #' @param verbose if true, will print progress information (default: FALSE)
