@@ -47,13 +47,15 @@ vargen_install <- function(install_dir = "./", gtex_version = "v10", timeout = 1
   #-----------------------------------------------------------------------------
   # Download FANTOM5 Enhancers
   #-----------------------------------------------------------------------------
-  if(verbose) print("Dowloading FANTOM's enhancer tss associations")
+  if(verbose) print("Dowloading FANTOM's enhancers")
 
   # FANTOM5 enhancers
   utils::download.file("https://fantom.gsc.riken.jp/5/datafiles/reprocessed/hg38_latest/extra/enhancer/F5.hg38.enhancers.bed.gz",
                        destfile = paste0(install_dir, "/F5.hg38.enhancers.bed.gz"))
   R.utils::gunzip(filename = paste0(install_dir, "/F5.hg38.enhancers.bed.gz"),
                   skip = TRUE, remove = TRUE)
+  
+  if(verbose) print("Dowloading FANTOM's promoters")
   
   # FANTOM5 promoters
   utils::download.file("https://fantom.gsc.riken.jp/5/datafiles/reprocessed/hg38_latest/extra/CAGE_peaks_expression/hg38_liftover+new_CAGE_peaks_phase1and2_ann.txt.gz",
