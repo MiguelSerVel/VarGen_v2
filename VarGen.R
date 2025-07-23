@@ -280,8 +280,12 @@ vargen_pipeline <- function(vargen_dir, omim_morbid_ids, fantom_corr = 0.25,
   if(verbose) print(paste0("Reading the enhancer tss association file for FANTOM5... '" ,
                            vargen_dir, "/enhancer_tss_associations.bed'"))
   
-  fantom_df <- prepare_fantom(enhancer_tss_association = paste0(vargen_dir,
-                                                                "/enhancer_tss_associations.bed"))
+  promoters_df <- prepare_fantom_promoters(paste0(vargen_dir,
+                                                  "/hg38_liftover+new_CAGE_peaks_phase1and2_ann.txt"))
+                                                  
+  enhancers_df <- prepare_fantom_enhancers(paste0(vargen_dir,
+                                                  "/F5.hg38.enhancers.bed"),
+                                           corr_threshold = fantom_corr)
 
   hg19ToHg38.over.chain <- paste0(vargen_dir, "/hg19ToHg38.over.chain")
   
@@ -332,6 +336,10 @@ vargen_pipeline <- function(vargen_dir, omim_morbid_ids, fantom_corr = 0.25,
     if(length(genes_variants) != 0){
       master_variants <- rbind(master_variants, genes_variants)
     }
+    
+    #---------------------------------------------------------------------------
+    # Getting FANTOM variants
+    #---------------------------------------------------------------------------
 
     # We get the variants on the enhancers of the genes:
     fantom_variants <- get_fantom5_variants(fantom_df = fantom_df,
