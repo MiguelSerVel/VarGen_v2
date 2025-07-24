@@ -484,7 +484,8 @@ vargen_pipeline <- function(vargen_dir, omim_morbid_ids, fantom_corr = 0.25,
 #'               gtex_tissues = adipose_tissues,
 #'               gwas_traits = "Obesity")
 #' @export
-vargen_custom <- function(vargen_dir, gene_ids, fantom_corr = 0.25, outdir = "./",
+vargen_custom <- function(vargen_dir, gene_ids, fantom_corr = 0.25, 
+                          fantom_enhancer_gap = 100000, outdir = "./",
                           gtex_tissues, gwas_traits, gene_mart, snp_mart,
                           verbose = FALSE) {
 
@@ -520,10 +521,17 @@ vargen_custom <- function(vargen_dir, gene_ids, fantom_corr = 0.25, outdir = "./
     }
   }
 
-  if(verbose) print(paste0("Reading the enhancer tss association file for FANTOM5... '" ,
-                           vargen_dir, "/enhancer_tss_associations.bed'"))
-  fantom_df <- prepare_fantom(enhancer_tss_association = paste0(vargen_dir, "/enhancer_tss_associations.bed"))
-
+  if(verbose) print(paste0("Reading the promoters file for FANTOM5... '" ,
+                           vargen_dir, "hg38_liftover+new_CAGE_peaks_phase1and2_ann.txt'"))
+  
+  promoters_df <- prepare_fantom_promoters(paste0(vargen_dir,
+                                                  "/hg38_liftover+new_CAGE_peaks_phase1and2_ann.txt"))
+  
+  if(verbose) print(paste0("Reading the enhancers file for FANTOM5... '" ,
+                           vargen_dir, "F5.hg38.enhancers.bed'"))                               
+  enhancers_df <- prepare_fantom_enhancers(paste0(vargen_dir,
+                                                  "/F5.hg38.enhancers.bed"),
+                                           corr_threshold = fantom_corr)
 
   hg19ToHg38.over.chain <- paste0(vargen_dir, "/hg19ToHg38.over.chain")
   if(!file.exists(hg19ToHg38.over.chain)){
@@ -573,10 +581,11 @@ vargen_custom <- function(vargen_dir, gene_ids, fantom_corr = 0.25, outdir = "./
     #---------------------------------------------------------------------------
     # Getting variants on the enhancers of the OMIM genes, using FANTOM5
     #---------------------------------------------------------------------------
-    fantom_variants <- get_fantom5_variants(fantom_df = fantom_df,
+    fantom_variants <- get_fantom5_variants(promoters_df = promoters_df,
+                                            enhancers_df = enhancers_df,
                                             omim_genes = genes_info,
-                                            corr_threshold = fantom_corr,
                                             hg19ToHg38.over.chain = hg19ToHg38.over.chain,
+                                            enhancer_gap = fantom_enhancer_gap,
                                             verbose = verbose)
 
     if(length(fantom_variants) != 0) master_variants <- rbind(master_variants,
