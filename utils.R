@@ -371,7 +371,7 @@ annotate_dataframe <- function(rsid_df, rsid_column = "rsid", verbose = FALSE){
   annotation_df <- annotate_variants(rsid_df[[rsid_column]], verbose = verbose)
   
   # Merge annotations with original dataframe
-  annotation_df <- merge(rsid_df, annotation_df, by = 'rsid')
+  annotation_df <- merge(rsid_df, annotation_df, by.x = rsid_column, by.y = 'rsid')
   
   # Return result
   return(unique(annotation_df))
