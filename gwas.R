@@ -348,11 +348,18 @@ get_gwas_list <- function(gwas_traits, locations, verbose = FALSE, timeout = 100
   gwas_files_info <- gwas_files_info[grepl(pattern_traits, 
                                            gwas_files_info$disease_trait, 
                                            ignore.case = TRUE), ]
+  if(nrow(gwas_files_info) == 0){
+    stop(paste0("Can not find GWAS files for the selected traits."))
+  }
   
   # Filter by population
   gwas_files_info <- gwas_files_info[grepl(pattern_locations, 
                                            gwas_files_info$initial_sample_size, 
                                            ignore.case = TRUE), ]
+  
+  if(nrow(gwas_files_info) == 0){
+    stop(paste0("Can not find GWAS files for the selected locations."))
+  }
   
   # Add column to check if study is available to download
   gwas_files_info$availability <- ifelse(check_gwas_availability(gwas_files_info$study_accession), 
@@ -419,7 +426,7 @@ get_gwas_dir_from_id <- function(gcst_id){
 }
 
 
-#' @title Downloads a GWAS summary statistics file given a GCST ID
+#' @title Downloads a GWAS summary statistics file given list of GCST IDs
 #' @description Calls get_gwas_dir_from_id to obtain the online directory where
 #' the selected GWAS summary statistics file (given by the GCST ID) is stored and
 #' downloads the file in the selected directory. The function checks if the file
@@ -433,9 +440,9 @@ get_gwas_dir_from_id <- function(gcst_id){
 #' @return nothing, download file in "install_dir"
 #'
 #' @examples
-#' get_gwas_file("GCST005536", "./gwas_files")
+#' get_gwas_files(c("GCST005536", "GCST008753", "./gwas_files")
 #' @export
-get_gwas_file <- function(gcst_id, install_dir = "./",  timeout = 10000, verbose = TRUE){
+get_gwas_files <- function(gcst_ids, install_dir = "./",  timeout = 10000, verbose = TRUE){
   # Timeout settings
   original_timeout <- getOption("timeout")
   options(timeout = timeout)
@@ -447,30 +454,37 @@ get_gwas_file <- function(gcst_id, install_dir = "./",  timeout = 10000, verbose
     dir.create(install_dir)
   }
   
-  # Obtain full url to harmonised gwas directory
-  url = "http://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/"
-  dir <- get_gwas_dir_from_id(gcst_id)
-  full_url <- paste0(url, dir, "/", gcst_id, "/harmonised/")
-  
-  # Check if the file exists
-  if(!check_gwas_availability(full_url)){
-    stop("The selected GWAS file is not available to download.")
+  for(id in gcst_ids){
+    # Check if the file exists
+    if(!check_gwas_availability(id)){
+      if(verbose) print(paste0(id, " is not available to download. Skipping it."))
+      next
+    }
+    # Obtain full url to harmonised gwas directory
+    url = "http://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/"
+    dir <- get_gwas_dir_from_id(id)
+    full_url <- paste0(url, dir, "/", id, "/harmonised/")
+    
+    if(!RCurl::url.exists(full_url)){
+      if(verbose) print(paste0(id, " harmonised results are not available."))
+      next
+    }
+    
+    # Read html to see available files
+    doc <- xml2::read_html(full_url)
+    links <- xml2::xml_find_all(doc, "//a")
+    file_names <- xml2::xml_attr(links, "href")
+    
+    # Get the file (first occurence) ending in h.tsv.gz
+    download_files <- file_names[grepl("\\.h\\.tsv\\.gz$", file_names, perl = TRUE)] 
+    download_file <- download_files[1]
+    
+    # Download file
+    download_url <- paste0(full_url, download_file)
+    utils::download.file(url = download_url,
+                         destfile = paste0(install_dir, "/", download_file))
   }
-  
-  # Read html to see available files
-  doc <- xml2::read_html(full_url)
-  links <- xml2::xml_find_all(doc, "//a")
-  file_names <- xml2::xml_attr(links, "href")
-  
-  # Get the file (first occurence) ending in h.tsv.gz
-  download_files <- file_names[grepl("\\.h\\.tsv\\.gz$", file_names, perl = TRUE)] 
-  download_file <- download_files[1]
-  
-  # Download file
-  download_url <- paste0(full_url, download_file)
-  utils::download.file(url = download_url,
-                       destfile = paste0(install_dir, "/", download_file))
-  
+
   # Timeout settings
   options(timeout = original_timeout)
   if(verbose) print(paste0("Resetting the timeout to previous value '", original_timeout, "'"))
