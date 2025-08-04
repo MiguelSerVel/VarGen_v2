@@ -305,7 +305,7 @@ vargen_pipeline <- function(vargen_dir, omim_morbid_ids, fantom_corr = 0.25,
   
   # Check if there are any lookup files
   if(length(gtex_lookup_files) == 0){
-    stop(paste0("Can not read: ", gtex_lookup_file, ", stopping now."))
+    stop(paste0("Can not read: gtex_lookup_file, stopping now."))
   }
 
   # Get the last one (the newest one)
@@ -577,7 +577,7 @@ vargen_custom <- function(vargen_dir, gene_ids, fantom_corr = 0.25,
     master_variants <- get_genes_variants(genes = genes_info, verbose = verbose)
     # Replacing "omim" by "gene"
     master_variants$source <- "gene"
-
+  
     #---------------------------------------------------------------------------
     # Getting variants on the enhancers of the OMIM genes, using FANTOM5
     #---------------------------------------------------------------------------
@@ -790,8 +790,17 @@ vargen_visualisation <- function(annotated_snps, outdir = "./", rsid_highlight,
 
       itrack <- Gviz::IdeogramTrack(genome="hg38", chromosome = genes_list[i,]$chromosome_name)
       axis_track <- Gviz::GenomeAxisTrack()
-
+      
       plot_name <- paste0(outdir,"/",genes_list[i,"hgnc_symbol"], "_", genes_list[i,"ensembl_gene_id"], "_GVIZ")
+      
+      # Check if plot name already exists to avoid replacing it
+      i <- 1
+      
+      while(file.exists(paste0(plot_name, ".", device))){
+        if (i != 1) plot_name <- substr(plot_name, 1, nchar(plot_name)-2)
+        plot_name <- paste0(plot_name, "_", i)
+        i <- i +1
+      }
       if(device == "pdf") grDevices::pdf(paste0(plot_name,".pdf"), width = 15, height = 10)
       if(device == "png") grDevices::png(paste0(plot_name,".png"), width = 15, height = 10, units = "in", res = 300)
 
