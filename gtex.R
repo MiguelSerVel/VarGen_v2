@@ -116,11 +116,13 @@ convert_gtex_to_rsids <- function(gtex_variants, gtex_lookup_file, verbose = FAL
   if(verbose) print("Loading GTEx lookup table... Please be patient")
   
   # Read column names of gtex_lookup_file
-  header <- data.table::fread(gtex_lookup_file, nrows = 0)
+  header <- readLines(gtex_lookup_file, n = 1)
+  column_names <- strsplit(header, "\t")[[1]]
   
-  col1 <- names(header)[1]
-  col7 <- names(header)[7]
-  col8 <- names(header)[8]
+  # Names for columns 1, 7 y 8
+  col1 <- column_names[1]
+  col7 <- column_names[7]
+  col8 <- column_names[8]
   
   #-----------------------------------------------------------------------------
   # duckDB for ultra fast data management
