@@ -58,8 +58,21 @@ study_vcf <- function(vcf_file, rsid_df, gwas_file, outdir = "./", min_qual = 20
   shared_df <- compare_vcf(vcf_df = vcf_df, rsid_df = rsid_df,
                            memory_limit = memory_limit, verbose = verbose)
   
+  # Check if the dataframe is empty and stop if it is
+  if(nrow(shared_df) == 0){
+    if(verbose) print("There aren't any shared variants.")
+    return(shared_df)
+  }
+  
   # Drop rows with less quality than the minimum
+  shared_df$QUAL <- as.numeric(shared_df$QUAL)
   shared_df <- shared_df[shared_df$QUAL >= min_qual, ]
+  
+  # Check if the dataframe is empty and stop if it is
+  if(nrow(shared_df) == 0){
+    if(verbose) print("There aren't any shared variants with the required quality.")
+    return(shared_df)
+  }
   
   if(!df_annotated){
     # Annotate dataframe with shared rsids
@@ -136,43 +149,43 @@ study_vcf <- function(vcf_file, rsid_df, gwas_file, outdir = "./", min_qual = 20
     # Create plots
     vargen_visualisation(rsid_df_ann, outdir = outdir, rsid_highlight = marked_rsids,
                          device = "png", verbose = verbose)
+  
+  
+    if(verbose) print("Generating summary plot...")
+    
+    # Plot proportion of variants found depending on source
+    rsid_df_small <- rsid_df[, c("rsid", "source")]
+    shared_df_ann_small <- shared_df[, c("rsid", "source")]
+    
+    rsid_df_small$dataframe <- "Master list"
+    shared_df_ann_small$dataframe <- "VCF file"
+    
+    all_variants <- rbind(rsid_df_small, shared_df_ann_small)
+    
+    # Count number of variants per source and gene
+    count_df <- as.data.frame(table(all_variants$source, all_variants$dataframe))
+    colnames(count_df) <- c("source", "dataframe", "frequency")
+    
+    # Remove zero counts
+    count_df <- count_df[count_df$frequency > 0, ]
+    
+    # Plot
+    count_plot <- ggplot2::ggplot(count_df, 
+                                  ggplot2::aes(x = source, y = frequency, 
+                                               fill = dataframe)) +
+      ggplot2::geom_bar(stat = "identity", position = "dodge") +
+      ggplot2::geom_text(ggplot2::aes(label = frequency), 
+                         position = ggplot2::position_dodge(width = 0.9), 
+                         vjust = -0.5, size = 3) +
+      ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0, 0.15))) +  
+      ggplot2::labs(title = "Number of variants per source",
+                    x = "Source", y = "Frequency")
+    
+    name = paste0(outdir, "/variant_freq_summary.jpeg")
+    jpeg(name, width = 2000, height = 1200, res = 200)
+    print(count_plot)  
+    dev.off()
   }
-  
-  if(verbose) print("Generating summary plot...")
-  
-  # Plot proportion of variants found depending on source
-  rsid_df_small <- rsid_df[, c("rsid", "source")]
-  shared_df_ann_small <- shared_df[, c("rsid", "source")]
-  
-  rsid_df_small$dataframe <- "Master list"
-  shared_df_ann_small$dataframe <- "VCF file"
-  
-  all_variants <- rbind(rsid_df_small, shared_df_ann_small)
-  
-  # Count number of variants per source and gene
-  count_df <- as.data.frame(table(all_variants$source, all_variants$dataframe))
-  colnames(count_df) <- c("source", "dataframe", "frequency")
-  
-  # Remove zero counts
-  count_df <- count_df[count_df$frequency > 0, ]
-  
-  # Plot
-  count_plot <- ggplot2::ggplot(count_df, 
-                                ggplot2::aes(x = source, y = frequency, 
-                                             fill = dataframe)) +
-    ggplot2::geom_bar(stat = "identity", position = "dodge") +
-    ggplot2::geom_text(ggplot2::aes(label = frequency), 
-                       position = ggplot2::position_dodge(width = 0.9), 
-                       vjust = -0.5, size = 3) +
-    ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0, 0.15))) +  
-    ggplot2::labs(title = "Number of variants per source",
-                  x = "Source", y = "Frequency")
-  
-  name = paste0(outdir, "/variant_freq_summary.jpeg")
-  jpeg(name, width = 2000, height = 1200, res = 200)
-  print(count_plot)  
-  dev.off()
-  
   
   #-----------------------------------------------------------------------------
   # Return annotated dataframe with shared rsids
