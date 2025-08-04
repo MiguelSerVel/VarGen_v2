@@ -124,6 +124,8 @@ get_genes_variants <- function(genes, verbose = FALSE){
   list.variants <- vector('list', nrow(genes))
 
   for(current_gene in 1:nrow(genes)){
+    if(verbose) print(paste0("Looking for variants in gene ", 
+                             genes[current_gene, "hgnc_symbol"]))
     variants_loc <- get_variants_from_locations(locations = paste0(genes[current_gene,"chromosome_name"], ":",
                                                                    genes[current_gene,"start_position"], ":",
                                                                    genes[current_gene,"end_position"]),
