@@ -40,7 +40,7 @@ connect_to_gene_ensembl <- function(mirror = "www"){
 #' # Connect with the "www" mirror
 #' www_ensembl <- connect_to_snp_ensembl(mirror="www")
 #' @export
-connect_to_snp_ensembl <- function(mirror = "www", version = 102){
+connect_to_snp_ensembl <- function(mirror = "www", version = 106){
   snp_mart <- biomaRt::useEnsembl(biomart = "snps",
                                   mirror = mirror,
                                   dataset = "hsapiens_snp",
@@ -218,7 +218,8 @@ annotate_variants <- function(rsid, verbose = FALSE) {
   # First, use "getVariants" to annotate the snps
   rsid_annotated <- myvariant::getVariants(hgvsids = rsid, verbose = verbose,
                                            myvariant = myvariant,
-                                           fields =  c("cadd", "dbnsfp", "clinvar", "snpeff", "vcf"))
+                                           fields =  c("cadd", "dbnsfp", "clinvar", 
+                                                       "snpeff", "vcf", "gnomad_genome"))
 
   # Then, format the output as a data.frame
   # Checking "is.null" is needed to avoid errors when there is a list of variants
@@ -228,35 +229,65 @@ annotate_variants <- function(rsid, verbose = FALSE) {
   } else {
     cadd_phred <- unlist(rsid_annotated$cadd.phred)
   }
-    
-  if(is.null(rsid_annotated$cadd.1000g.af)){
-    cadd_1000g_af <- NA
+  
+  if(is.null(rsid_annotated$gnomad_genome.af.af)){
+    gnomad_af_total <- NA
   } else {
-    cadd_1000g_af <- unlist(rsid_annotated$cadd.1000g.af)
+    gnomad_af_total <- unlist(rsid_annotated$gnomad_genome.af.af)
   }
   
-  if(is.null(rsid_annotated$cadd.1000g.afr)){
-    cadd_1000g_afr <- NA
+  if(is.null(rsid_annotated$gnomad_genome.af.af_afr)){
+    gnomad_af_afr <- NA
   } else {
-    cadd_1000g_afr <- unlist(rsid_annotated$cadd.1000g.afr)
+    gnomad_af_afr <- unlist(rsid_annotated$gnomad_genome.af.af_afr)
   }
   
-  if(is.null(rsid_annotated$cadd.1000g.amr)){
-    cadd_1000g_amr <- NA
+  if(is.null(rsid_annotated$gnomad_genome.af.af_afr_male)){
+    gnomad_af_afr_M <- NA
   } else {
-    cadd_1000g_amr <- unlist(rsid_annotated$cadd.1000g.amr)
+    gnomad_af_afr_M <- unlist(rsid_annotated$gnomad_genome.af.af_afr_male)
   }
   
-  if(is.null(rsid_annotated$cadd.1000g.asn)){
-    cadd_1000g_asn <- NA
+  if(is.null(rsid_annotated$gnomad_genome.af.af_afr_female)){
+    gnomad_af_afr_F <- NA
   } else {
-    cadd_1000g_asn <- unlist(rsid_annotated$cadd.1000g.asn)
+    gnomad_af_afr_F <- unlist(rsid_annotated$gnomad_genome.af.af_afr_female)
   }
   
-  if(is.null(rsid_annotated$cadd.1000g.eur)){
-    cadd_1000g_eur <- NA
+  if(is.null(rsid_annotated$gnomad_genome.af.af_amr)){
+    gnomad_af_amr <- NA
   } else {
-    cadd_1000g_eur <- unlist(rsid_annotated$cadd.1000g.eur)
+    gnomad_af_amr <- unlist(rsid_annotated$gnomad_genome.af.af_amr)
+  }
+  
+  if(is.null(rsid_annotated$gnomad_genome.af.af_amr_male)){
+    gnomad_af_amr_M <- NA
+  } else {
+    gnomad_af_amr_M <- unlist(rsid_annotated$gnomad_genome.af.af_amr_male)
+  }
+  
+  if(is.null(rsid_annotated$gnomad_genome.af.af_amr_female)){
+    gnomad_af_amr_F <- NA
+  } else {
+    gnomad_af_amr_F <- unlist(rsid_annotated$gnomad_genome.af.af_amr_female)
+  }
+  
+  if(is.null(rsid_annotated$gnomad_genome.af.af_nfe)){
+    gnomad_af_eur <- NA
+  } else {
+    gnomad_af_eur <- unlist(rsid_annotated$gnomad_genome.af.af_nfe)
+  }
+  
+  if(is.null(rsid_annotated$gnomad_genome.af.af_nfe_male)){
+    gnomad_af_eur_M <- NA
+  } else {
+    gnomad_af_eur_M <- unlist(rsid_annotated$gnomad_genome.af.af_nfe_male)
+  }
+  
+  if(is.null(rsid_annotated$gnomad_genome.af.af_nfe_female)){
+    gnomad_af_eur_F <- NA
+  } else {
+    gnomad_af_eur_F <- unlist(rsid_annotated$gnomad_genome.af.af_nfe_female)
   }
 
   if(is.null(rsid_annotated$dbnsfp.fathmm.xf.coding_score)){
@@ -322,11 +353,16 @@ annotate_variants <- function(rsid, verbose = FALSE) {
                                   vcf_ref = vcf.ref,
                                   vcf_alt = vcf.alt,
                                   cadd_phred = cadd_phred,
-                                  cadd_1000g_af = cadd_1000g_af,
-                                  cadd_1000g_afr = cadd_1000g_afr,
-                                  cadd_1000g_amr = cadd_1000g_amr,
-                                  cadd_1000g_asn = cadd_1000g_asn,
-                                  cadd_1000g_eur = cadd_1000g_eur,
+                                  gnomad_af_total = gnomad_af_total,
+                                  gnomad_af_afr = gnomad_af_afr,
+                                  gnomad_af_afr_M = gnomad_af_afr_M,
+                                  gnomad_af_afr_F = gnomad_af_afr_F,
+                                  gnomad_af_amr = gnomad_af_amr,
+                                  gnomad_af_amr_M = gnomad_af_amr_M,
+                                  gnomad_af_amr_F = gnomad_af_amr_F,
+                                  gnomad_af_eur = gnomad_af_eur,
+                                  gnomad_af_eur_M = gnomad_af_eur_M,
+                                  gnomad_af_eur_F = gnomad_af_eur_F,
                                   fathmm_xf_score = fathmm_score,
                                   fathmm_xf_pred = fathmm_pred,
                                   annot_type = annot_type,
