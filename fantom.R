@@ -48,10 +48,8 @@ prepare_fantom_promoters <- function(promoters_file) {
 #' @param promoters_file the "F5.hg38.enhancers.bed" file from FANTOM5.
 #' The file can be downloaded here:
 #' https://fantom.gsc.riken.jp/5/datafiles/reprocessed/hg38_latest/extra/enhancer/F5.hg38.enhancers.bed.gz
-#' @param corr_threshold the minimum correlation (z-score) to consider a
-#' enhancer/gene association valid (default: 0.25). A z-score greater than 0
-#' represents an element greater than the mean, this means that this association
-#'  has more correlation than random motifs.
+#' @param score_threshold the minimum number of CAGE peaks detected for that enhancer.
+#' This allows to filter out low atictivy enhancers (default: 5)
 #' @return a data.frame containing the file information with the following columns:
 #' \itemize{
 #'   \item chrom (chromosome)
@@ -67,7 +65,7 @@ prepare_fantom_promoters <- function(promoters_file) {
 #'   \item blockSizes (comma-separated list of block sizes)
 #'   \item chromStarts (comma-separated list of start offsets)
 #'   }
-prepare_fantom_enhancers <- function(enhancers_file, corr_threshold = 0.25){
+prepare_fantom_enhancers <- function(enhancers_file, score_threshold = 5){
   # Get enhancers from file
   enhancers <- utils::read.delim(enhancers_file, header = F,
                                  stringsAsFactors = FALSE)
@@ -83,7 +81,6 @@ prepare_fantom_enhancers <- function(enhancers_file, corr_threshold = 0.25){
   # A z-score greater than 0 represents an element greater than the mean, this
   # means "more correlation than random motifs"
   # score = correlation*1000
-  score_threshold <- corr_threshold*1000
   enhancers <- enhancers[(enhancers$score >= score_threshold),]
   
   return(enhancers)
