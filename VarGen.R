@@ -186,10 +186,8 @@ vargen_install <- function(install_dir = "./", gtex_version = "v10", timeout = 1
 #' @param omim_morbid_ids a vector containing the omim morbid id(s) of the phenotype(s)
 #' of interest. You can search on the Online Mendelian Inheritance in Man website
 #' (https://www.omim.org/) or use \code{\link{list_omim_accessions}}
-#' @param fantom_corr the minimum correlation (z-score) to consider a FANTOM5
-#' enhancer/gene association valid (default: 0.25).
-#' A z-score greater than 0 represents an element greater than the mean, this
-#' means that this association has more correlation than random motifs.
+#' @param fantom_score the minimum number of CAGE peaks detected for that enhancer.
+#' This allows to filter out low atictivy enhancers (default: 5).
 #' @param fantom_enhancer_gap the length in bases to look for enhancers from a 
 #' given chromosomal position for promoters
 #' @param outdir the output directory, some files will be written during the
@@ -223,7 +221,7 @@ vargen_install <- function(install_dir = "./", gtex_version = "v10", timeout = 1
 #'
 #' # Simple query
 #' DM1_simple <- vargen_pipeline(vargen_dir = "./vargen_data/", omim_morbid_ids = "222100",
-#'                               fantom_corr = 0.25, outdir = "./", verbose = TRUE)
+#'                               fantom_score = 5, outdir = "./", verbose = TRUE)
 #'
 #'
 #' # Query with gtex and gwas
@@ -233,11 +231,11 @@ vargen_install <- function(install_dir = "./", gtex_version = "v10", timeout = 1
 #' # list_gwas_traits("diabetes")
 #'
 #' DM1 <- vargen_pipeline(vargen_dir = "./vargen_data/", omim_morbid_ids = "222100",
-#'                        fantom_corr = 0.25, outdir = "./",
+#'                        fantom_score = 5, outdir = "./",
 #'                        gtex_tissues = pancreas_tissues,
 #'                        gwas_traits = "Type 1 diabetes", verbose = TRUE)
 #' @export
-vargen_pipeline <- function(vargen_dir, omim_morbid_ids, fantom_corr = 0.25,
+vargen_pipeline <- function(vargen_dir, omim_morbid_ids, fantom_score = 5,
                             fantom_enhancer_gap = 100000, outdir = "./", 
                             gtex_tissues, gwas_traits, gene_mart, snp_mart, 
                             verbose = FALSE) {
@@ -290,7 +288,7 @@ vargen_pipeline <- function(vargen_dir, omim_morbid_ids, fantom_corr = 0.25,
                            vargen_dir, "F5.hg38.enhancers.bed'"))                               
   enhancers_df <- prepare_fantom_enhancers(paste0(vargen_dir,
                                                   "/F5.hg38.enhancers.bed"),
-                                           corr_threshold = fantom_corr)
+                                           score_threshold = fantom_score)
 
   hg19ToHg38.over.chain <- paste0(vargen_dir, "/hg19ToHg38.over.chain")
   
@@ -435,10 +433,8 @@ vargen_pipeline <- function(vargen_dir, omim_morbid_ids, fantom_corr = 0.25,
 #' @param vargen_dir directory with the following file (can be generated with
 #' \code{\link{vargen_install}})
 #' @param gene_ids list of ensembl gene IDs of interest
-#' @param fantom_corr the minimum correlation (z-score) to consider a FANTOM5
-#' enhancer/gene association valid (default: 0.25).
-#' A z-score greater than 0 represents an element greater than the mean, this
-#' means that this association has more correlation than random motifs.
+#' @param fantom_score the minimum number of CAGE peaks detected for that enhancer.
+#' This allows to filter out low atictivy enhancers (default: 5).
 #' @param outdir the output directory, some files will be written during the
 #' running of this function
 #' @param gtex_tissues a vector containing the name of the "signif_variant_gene_pairs.txt.gz"
@@ -484,7 +480,7 @@ vargen_pipeline <- function(vargen_dir, omim_morbid_ids, fantom_corr = 0.25,
 #'               gtex_tissues = adipose_tissues,
 #'               gwas_traits = "Obesity")
 #' @export
-vargen_custom <- function(vargen_dir, gene_ids, fantom_corr = 0.25, 
+vargen_custom <- function(vargen_dir, gene_ids, fantom_score = 5, 
                           fantom_enhancer_gap = 100000, outdir = "./",
                           gtex_tissues, gwas_traits, gene_mart, snp_mart,
                           verbose = FALSE) {
@@ -531,7 +527,7 @@ vargen_custom <- function(vargen_dir, gene_ids, fantom_corr = 0.25,
                            vargen_dir, "F5.hg38.enhancers.bed'"))                               
   enhancers_df <- prepare_fantom_enhancers(paste0(vargen_dir,
                                                   "/F5.hg38.enhancers.bed"),
-                                           corr_threshold = fantom_corr)
+                                           score_threshold = fantom_score)
 
   hg19ToHg38.over.chain <- paste0(vargen_dir, "/hg19ToHg38.over.chain")
   if(!file.exists(hg19ToHg38.over.chain)){
